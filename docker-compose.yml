@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: gunicorn --bind 0.0.0.0:8000 gas_utility.wsgi:application
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - celery
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: gas_utility_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6
+
+  celery:
+    build: .
+    command: celery -A gas_utility worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
+
+  haproxy:
+    image: haproxy:2.4
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
